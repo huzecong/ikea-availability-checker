@@ -9,11 +9,11 @@ let IOWS2 = require('./lib/iows2.js');
 const errors = require('./lib/iows2Errors');
 
 function optionalSplitOptionCSV(val) {
-  const seperator = ',';
-  if (val.indexOf(seperator) === -1) {
+  const separator = ',';
+  if (val.indexOf(separator) === -1) {
     return val;
   }
-  return val.split(seperator)
+  return val.split(separator)
     // trim all values
     .map(val => val.trim())
     // make unique
@@ -108,15 +108,9 @@ Examples:
     });
     const flat = [].concat.apply([], data);
 
-    const promises = flat.map(
-      /**
-       * @param {Object} row
-       * @param {String} row.productId
-       * @param {import('./lib/stores').Store} row.store
-       */
-      ({ store, productId }) => {
+    async function getProductInfo(store, productId) {
       const iows = new IOWS2(store.countryCode);
-      return iows.getStoreProductAvailability(store.buCode, productId)
+      const availabilityPromise = iows.getStoreProductAvailability(store.buCode, productId)
         // softly continue the promise chain when there’s just a 404 (not found)
         .catch(err => {
           if (err instanceof errors.IOWS2ParseError) {
@@ -132,9 +126,36 @@ Examples:
           productId,
           store,
           availability
+        }));
+      const detailsPromise = iows.getProductDetails(productId)
+        .then(details => {
+          details.price = details.price.toFixed(2);
+          return details;
         })
-      )
-    });
+        .catch(err => {
+          if (err instanceof errors.IOWS2ParseError) {
+            return { name: '<UNKNOWN>', typeName: '', price: 'N/A' };
+          }
+          // when product could not be found return an empty availability
+          if (err.response && err.response.status === 404 && promises.length > 1) {
+            return { name: '<NOT_FOUND>', typeName: '', price: 'N/A' };
+          }
+          throw err;
+        });
+      return Promise.all([availabilityPromise, detailsPromise]).then(results => {
+        return Object.assign(results[0], {details: results[1]});
+      })
+    }
+
+    const promises = flat.map(
+      /**
+       * @param {Object} row
+       * @param {String} row.productId
+       * @param {import('./lib/stores').Store} row.store
+       */
+      ({ store, productId }) => {
+        return getProductInfo(store, productId);
+      });
 
     Promise.all(promises)
       .then(results => console.log(reporter.createReport(results)))

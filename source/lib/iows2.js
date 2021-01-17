@@ -31,7 +31,7 @@ const PRODUCT_TYPE = {
  * @property {Date} createdAt instance of a javascript date of the moment when
  *   the data was created.
  * @property {ProductAvailabilityProbability} probability
- *   probability of the product beeing in store ("LOW", "MEDIUM" or "HIGH")
+ *   probability of the product being in store ("LOW", "MEDIUM" or "HIGH")
  * @property {string} productId
  *   ikea product identification number
  * @property {string} buCode
@@ -149,7 +149,7 @@ class IOWS2 {
   }
 
   /**
-   * Asynchronsouly request the stock information of a specific product in
+   * Asynchronously request the stock information of a specific product in
    * the given store.
    *
    * @param {String} buCode ikea store identification number
@@ -197,6 +197,52 @@ class IOWS2 {
         };
         try {
           parsed = Object.assign(parsed, IOWS2.parseAvailabilityFromResponseData(data));
+        } catch (err) {
+          let error = new errors.IOWS2ParseError('Unable to parse valid looking response: ' + err.message);
+          error.data = data;
+          throw error;
+        }
+        return parsed;
+      });
+  }
+
+  static parseProductDetailsFromResponseData(data) {
+    const details = data.RetailItemComm[0];
+    const name = details.ProductName;
+    const typeName = details.ProductTypeName;
+    const price = parseFloat(details.RetailItemCommPriceList.RetailItemCommPrice[0].Price);
+
+    return {
+      createdAt: new Date(),
+      name,
+      typeName,
+      price,
+    };
+  }
+
+  async getProductDetails(productId) {
+    assert.strictEqual(typeof productId, 'string',
+      `Expected first argument productId to be a string, instead ${typeof productId} given.`
+    );
+    productId = String(productId).trim();
+
+    const url = `https://securema2.ikea.com/catalog/v1/us/en/search?query=${productId}`;
+    return this.fetch(url)
+      .catch(err => {
+        if (err.response) {
+          err.message =
+            `Unable to receive details for product ${productId} ` +
+            `status code: ${err.response.status} ${err.response.statusText} ` +
+            `using url: ${err.request.url}`;
+        }
+        throw err;
+      })
+      .then(data => {
+        let parsed = {
+          productId,
+        };
+        try {
+          parsed = Object.assign(parsed, IOWS2.parseProductDetailsFromResponseData(data));
         } catch (err) {
           let error = new errors.IOWS2ParseError('Unable to parse valid looking response: ' + err.message);
           error.data = data;

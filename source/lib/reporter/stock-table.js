@@ -35,11 +35,14 @@ module.exports = {
   createReport: function(data) {
     let table = new Table({
       head: [
-        'date',
+        // 'date',
         'countryCode',
-        'country',
-        'product',
-        'storeId (buCode)',
+        // 'country',
+        'productId',
+        'name',
+        'description',
+        'price',
+        // 'storeId (buCode)',
         'store',
         'stock',
         'probability',
@@ -47,21 +50,26 @@ module.exports = {
         'forecast',
       ],
       colAligns: [
+        // null,
         null,
-        null,
-        null,
+        // null,
         null,
         null,
         null,
         'right',
+        // null,
+        null,
         'right',
+        'right',
+        null,
         null,
       ],
     });
 
     data
-      .map(({ productId, store, availability }) => {
-        const { restockDate, createdAt, stock, probability } = availability;
+      .map(({ productId, store, availability, details }) => {
+        const { restockDate, stock, probability } = availability;
+        const { name, typeName, price } = details;
 
         let restockColumn = '';
         if (availability.restockDate) {
@@ -78,11 +86,14 @@ module.exports = {
         }).join(', ');
 
         return [
-          createdAt.toISOString(),
+          // createdAt.toISOString(),
           store.countryCode,
-          countries.getName(store.countryCode, 'en'),
+          // countries.getName(store.countryCode, 'en'),
           productId,
-          store.buCode,
+          name,
+          typeName,
+          price,
+          // store.buCode,
           store.name,
           availabilityColor(stock)(stock),
           probabilityColor(probability)(probability),
